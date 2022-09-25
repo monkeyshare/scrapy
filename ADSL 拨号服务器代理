@@ -1,0 +1,64 @@
+ADSL 拨号服务器代理:https://cuiqingcai.com/3443.html
+pppoe-start 拨号
+pppoe-stop  断开拨号
+pppoe-status 拨号连接状态
+
+yum -y install squid
+chkconfig --level 35 squid on
+修改配置文件
+
+vi /etc/squid/squid.conf
+修改如下几个部分：
+
+http_access allow !Safe_ports    #deny改成allow
+http_access allow CONNECT !SSL_ports  #deny改成allow
+http_access allow all  #deny改成allow
+
+其他的不需要过多配置。 启动 squid
+
+sudo service squid start
+如此一来配置就完成了。 代理使用的端口是 3128
+
+TinyProxy
+首先添加一下镜像源，然后安装
+
+rpm -Uvh http://dl.fedoraproject.org/pub/epel/5/i386/epel-release-5-4.noarch.rpm
+yum update
+yum install tinyproxy
+修改配置
+
+vi /etc/tinyproxy/tinyproxy.conf
+可以修改端口和允许的 IP，如果想任意主机都连接那就把 Allow 这一行注释掉。
+
+Port 8888 #预设是8888 Port,你可以更改
+Allow 127.0.0.1 #将127.0.0.1改成你自己的IP
+#例如你的IP 是1.2.3.4,你改成Allow 1.2.3.4,那只有你才可以连上这个Proxy
+#若你想任何IP都可以脸到Proxy在Allow前面打#注释
+启动 TinyProxy
+
+service tinyproxy start
+好了，两个代理都配置好了。 你想用那个都可以！ 不过你以为这样就完了吗？太天真了，我被困扰了好几天，怎么都连不上，我还在怀疑是不是我哪里设置得不对？各种搜，一直以为是哪里配置有遗漏，后来发现是 iptables 的锅，万恶的防火墙。踩过的的坑，那就不要让大家踩了，用下面的命令设置下 iptables，放行 3128 和 8888 端口就好了。
+--yum install iptables
+service iptables save
+systemctl stop firewalld
+systemctl disable  firewalld
+systemctl start iptables
+systemctl status iptables
+systemctl enable iptables
+修改 iptables 配置
+
+vi /etc/sysconfig/iptables
+在
+
+-A IN_public_allow -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW -j ACCEPT
+的下面添加两条规则
+
+-A IN_public_allow -p tcp -m tcp --dport 3128 -m conntrack --ctstate NEW -j ACCEPT
+-A IN_public_allow -p tcp -m tcp --dport 8888 -m conntrack --ctstate NEW -j ACCEPT
+保存，然后重启 iptables
+
+sudo service iptabels restart
+输入 ifconfig 得到 IP 地址，在其他的主机上输入
+
+curl -x IP:8888 www.baidu.com
+
